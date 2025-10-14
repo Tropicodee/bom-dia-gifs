@@ -10,20 +10,25 @@ def padronizar_nome(nome):
     nome = re.sub(r'[^\w_.]', '', nome)  # mantém apenas letras, números, underscore e ponto
     return nome.lower()
 
-ROOT_PATH = "C:\\Users\\91mar\\Downloads\\bom-dia-gifs"  # ALTERE para seu caminho local
+ROOT_PATH = "C:\\Users\\91mar\\Downloads\\bom-dia-gifs"  # <-- ajuste conforme o seu PC
 GITHUB_USER = "Tropicodee"
 REPO_NAME = "bom-dia-gifs"
 BRANCH = "master"
 BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{REPO_NAME}/{BRANCH}"
 FOLDERS = ["gif", "imagens"]
 
-# ✅ Lê o conteudo.json existente, se existir
 conteudo_path = os.path.join(ROOT_PATH, "conteudo.json")
+
+# ✅ Carrega o JSON atual (original)
 if os.path.exists(conteudo_path):
     with open(conteudo_path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
 else:
     manifest = {"version": "2", "gif": {}, "imagens": {}}
+
+# 🔍 Listas para relatório
+novos_arquivos = []
+arquivos_removidos = []
 
 for folder in FOLDERS:
     folder_path = os.path.join(ROOT_PATH, folder)
@@ -40,38 +45,54 @@ for folder in FOLDERS:
         if nome_categoria not in manifest[folder]:
             manifest[folder][nome_categoria] = []
 
-        # Cria um set para checar duplicados rapidamente
+        # Conjunto de URLs já existentes no JSON
         urls_existentes = set(manifest[folder][nome_categoria])
 
+        # Obter arquivos realmente existentes na pasta
+        arquivos_pasta = [
+            padronizar_nome(f)
+            for f in os.listdir(category_path)
+            if not f.startswith(".")
+        ]
+
+        # 🔹 Detecta imagens no JSON que sumiram da pasta
+        for url_antiga in list(urls_existentes):
+            nome_arquivo_json = url_antiga.split("/")[-1]
+            if nome_arquivo_json not in arquivos_pasta:
+                arquivos_removidos.append(url_antiga)
+                manifest[folder][nome_categoria].remove(url_antiga)
+
+        # 🔹 Detecta e adiciona novos arquivos que ainda não estão no JSON
         for file in os.listdir(category_path):
             if file.startswith("."):
                 continue
 
             arquivo_padronizado = padronizar_nome(file)
-            antigo = os.path.join(category_path, file)
-            novo = os.path.join(category_path, arquivo_padronizado)
-
-            # Se já existe arquivo com esse nome, adiciona (1), (2), ...
-            contador = 1
-            nome_base, ext = os.path.splitext(arquivo_padronizado)
-            while os.path.exists(novo) and novo != antigo:
-                arquivo_padronizado = f"{nome_base}({contador}){ext}"
-                novo = os.path.join(category_path, arquivo_padronizado)
-                contador += 1
-
-            # Renomeia localmente apenas se mudou o nome
-            if antigo != novo:
-                print(f"Renomeando {antigo} → {novo}")
-                os.rename(antigo, novo)
-
             url = f"{BASE_URL}/{folder}/{nome_categoria}/{arquivo_padronizado}"
 
-            # Adiciona apenas se não existir no JSON
             if url not in urls_existentes:
                 manifest[folder][nome_categoria].append(url)
+                novos_arquivos.append(url)
 
-# Salva o arquivo JSON atualizado
+# Salva o JSON atualizado
 with open(conteudo_path, "w", encoding="utf-8") as f:
     json.dump(manifest, f, indent=2, ensure_ascii=False)
 
-print("conteudo.json atualizado com sucesso ✅")
+# 🧾 Exibe relatório final
+print("\n✅ Atualização concluída com segurança!")
+print(f"→ Novos arquivos adicionados: {len(novos_arquivos)}")
+print(f"→ Arquivos removidos: {len(arquivos_removidos)}")
+
+if novos_arquivos:
+    print("\n📥 Novos arquivos detectados:")
+    for a in novos_arquivos[:10]:
+        print("  -", a)
+    if len(novos_arquivos) > 10:
+        print(f"  ... e mais {len(novos_arquivos)-10} arquivos.")
+
+if arquivos_removidos:
+    print("\n🗑️ Arquivos ausentes (removidos da pasta):")
+    for a in arquivos_removidos[:10]:
+        print("  -", a)
+    if len(arquivos_removidos) > 10:
+        print(f"  ... e mais {len(arquivos_removidos)-10} arquivos.")
