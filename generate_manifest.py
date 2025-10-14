@@ -10,20 +10,32 @@ def padronizar_nome(nome):
     nome = re.sub(r'[^\w_.]', '', nome)  # mantém apenas letras, números, underscore e ponto
     return nome.lower()
 
+def gerar_nome_unico(nome_base, nomes_existentes):
+    """Gera um nome único adicionando sufixo incremental (_1, _2, etc)"""
+    if nome_base not in nomes_existentes:
+        return nome_base
+    contador = 1
+    nome_sem_ext, ext = os.path.splitext(nome_base)
+    novo_nome = f"{nome_sem_ext}_{contador}{ext}"
+    while novo_nome in nomes_existentes:
+        contador += 1
+        novo_nome = f"{nome_sem_ext}_{contador}{ext}"
+    return novo_nome
+
 # Caminho raiz onde estão as pastas gif/ e imagens/
 ROOT_PATH = "C:\\Users\\91mar\\Downloads\\bom-dia-gifs"  # ALTERE para seu caminho local
 
 # 🔧 Configurações principais
 GITHUB_USER = "Tropicodee"
 REPO_NAME = "bom-dia-gifs"
-BRANCH = "master"  # Alterado para master
+BRANCH = "master"
 
 BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{REPO_NAME}/{BRANCH}"
 
-FOLDERS = ["gif", "imagens"]  # Se a pasta se chama imagens
+FOLDERS = ["gif", "imagens"]
 
 manifest = {
-    "version": "1",
+    "version": "2",
     "gif": {},
     "imagens": {}
 }
@@ -40,27 +52,36 @@ for folder in FOLDERS:
             files = []
             nome_categoria = padronizar_nome(category)
 
+            nomes_existentes = set()
+
             for file in os.listdir(category_path):
-                if not file.startswith("."):
-                    arquivo_padronizado = padronizar_nome(file)
-                    antigo = os.path.join(category_path, file)
-                    novo = os.path.join(category_path, arquivo_padronizado)
+                if file.startswith("."):
+                    continue
 
-                    # Renomeia o arquivo localmente se necessário
-                    if antigo != novo and not os.path.exists(novo):
-                        print(f"Renomeando {antigo} → {novo}")
+                arquivo_padronizado = padronizar_nome(file)
+                nome_unico = gerar_nome_unico(arquivo_padronizado, nomes_existentes)
+                nomes_existentes.add(nome_unico)
+
+                antigo = os.path.join(category_path, file)
+                novo = os.path.join(category_path, nome_unico)
+
+                # Renomeia localmente se necessário
+                if antigo != novo:
+                    if not os.path.exists(novo):
+                        print(f"Renomeando {file} → {os.path.basename(novo)}")
                         os.rename(antigo, novo)
-                    elif antigo != novo and os.path.exists(novo):
-                        print(f"Arquivo já existe, não renomeando: {novo}")
+                    else:
+                        print(f"Arquivo já existe, mantendo nome único: {os.path.basename(novo)}")
 
-                    # Sempre usa o nome padronizado para gerar URL
-                    url = f"{BASE_URL}/{folder}/{nome_categoria}/{arquivo_padronizado}"
-                    files.append(url)
+                # Gera URL para o JSON
+                url = f"{BASE_URL}/{folder}/{nome_categoria}/{nome_unico}"
+                files.append(url)
 
             manifest[folder][nome_categoria] = files
 
-# Salva o arquivo JSON com URLs completas
-with open(os.path.join(ROOT_PATH, "conteudo.json"), "w", encoding="utf-8") as f:
+# Salva o JSON final
+output_path = os.path.join(ROOT_PATH, "conteudo.json")
+with open(output_path, "w", encoding="utf-8") as f:
     json.dump(manifest, f, indent=2, ensure_ascii=False)
 
-print("conteudo.json gerado com sucesso ✅")
+print(f"\n✅ conteudo.json gerado com sucesso em {output_path}")
